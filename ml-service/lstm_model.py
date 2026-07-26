@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
 import warnings
+import time
 
 warnings.filterwarnings('ignore')
 
@@ -264,3 +265,14 @@ def predict_stock(ticker, num_epochs=15): #was 50
     except Exception as e:
         raise Exception(f"Prediction failed: {str(e)}")
 
+_cache = {}
+CACHE_TTL = 3 * 3600
+
+def predict_stock_cached(ticker, num_epochs=15):
+    hit = _cache.get(ticker)
+    if hit and time.time() - hit[0] < CACHE_TTL:
+        print(f"Cache hit for {ticker}")
+        return hit[1]
+    result = predict_stock(ticker, num_epochs)
+    _cache[ticker] = (time.time(), result)
+    return result

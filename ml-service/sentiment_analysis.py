@@ -71,6 +71,26 @@ def analyze_sentiment(text):
         print(f"FinBERT API error: {e}")
         return {'polarity': 0, 'sentiment': 'neutral'}
     
+    
+def analyze_sentiment_batch(texts):
+    try:
+        r = requests.post(HF_URL,
+            headers={"Authorization": f"Bearer {HF_TOKEN}"},
+            json={"inputs": [t[:1000] for t in texts], "options": {"wait_for_model": True}},
+            timeout=60)
+        r.raise_for_status()
+        results = []
+        for scores in r.json():
+            best = max(scores, key=lambda s: s['score'])
+            label = best['label'].lower()
+            pol = best['score'] if label == 'positive' else -best['score'] if label == 'negative' else 0.0
+            results.append({'polarity': round(pol, 4), 'sentiment': label})
+        return results
+    except Exception as e:
+        print(f"FinBERT API error: {e}")
+        return [{'polarity': 0, 'sentiment': 'neutral'} for _ in texts]
+    
+    
 def analyze_news_sentiment(ticker, company_name=None):
     try:
         articles = get_stock_news(ticker, company_name)
@@ -89,17 +109,15 @@ def analyze_news_sentiment(ticker, company_name=None):
         sentiments = []
         analyzed_articles = []
 
-        for article in articles[:10]:
-            title = article.get('title', '')
-            description = article.get('description', '')
-            text = f"{title}. {description}"
+        batch = articles[:10]
+        texts = [f"{a.get('title','')}. {a.get('description','')}" for a in batch]
+        batch_results = analyze_sentiment_batch(texts)
 
-            sentiment = analyze_sentiment(text)
+        for article, sentiment in zip(batch, batch_results):
             sentiments.append(sentiment['polarity'])
-
             analyzed_articles.append({
-                'title': title,
-                'description': description,
+                'title': article.get('title', ''),
+                'description': article.get('description', ''),
                 'url': article.get('url'),
                 'source': article.get('source', {}).get('name'),
                 'published_at': article.get('publishedAt'),
