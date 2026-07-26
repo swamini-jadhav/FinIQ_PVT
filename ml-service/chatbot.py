@@ -1,4 +1,5 @@
 import random
+import re,os,requests
 
 RESPONSES = {
     'greeting': [
@@ -84,11 +85,21 @@ def get_chatbot_response(message, context=None):
         message_lower = message.lower()
         
         matched_category = 'default'
+        best_len = 0
         for category, keywords in KEYWORDS.items():
-            if any(keyword in message_lower for keyword in keywords):
-                matched_category = category
-                break
+            for kw in keywords:
+                if re.search(rf'\b{re.escape(kw)}\b', message_lower) and len(kw) > best_len:
+                    matched_category = category
+                    best_len = len(kw)
         
+        if matched_category == 'default' and HF_TOKEN:
+            try:
+                return {'response': llm_response(message, context),
+                        'category': 'llm',
+                        'suggestions': get_suggestions('default')}
+            except Exception as e:
+                print(f"LLM error: {e}")
+                
         responses = RESPONSES.get(matched_category, RESPONSES['default'])
         response_text = random.choice(responses)
         
@@ -151,3 +162,30 @@ def get_suggestions(category):
     }
     
     return suggestions_map.get(category, suggestions_map['default'])
+
+HF_TOKEN = os.getenv('HF_TOKEN')
+CHAT_URL = "https://router.huggingface.co/v1/chat/completions"
+
+SYSTEM = (
+    "You are FinIQ's assistant, helping users with stock market and investing questions. "
+    "Be concise. Never give personalised financial advice; remind users to do their own "
+    "research. If asked about a specific stock, tell them to use the search bar for analysis."
+)
+
+def llm_response(message, context=None):
+    ctx = f"\n\nUser is currently viewing: {context.get('ticker')}" if context and context.get('ticker') else ""
+    r = requests.post(CHAT_URL,
+        headers={"Authorization": f"Bearer {HF_TOKEN}"},
+        json={
+            "model": "meta-llama/Llama-3.1-8B-Instruct",
+            "messages": [
+                {"role": "system", "content": SYSTEM + ctx},
+                {"role": "user", "content": message},
+            ],
+            "max_tokens": 300,
+        },
+        timeout=45)
+    r.raise_for_status()
+    return r.json()["choices"][0]["message"]["content"]
+
+

@@ -33,7 +33,7 @@ router.post('/predict', optionalAuth, async (req, res) => {
 
     // Call ML service for prediction
     const response = await axios.post(`${ML_SERVICE_URL}/predict`, { ticker }, {
-      timeout: 120000 // 2 minutes timeout for ML processing
+      timeout: 280000 // 2 minutes timeout for ML processing
     });
 
     res.json({
@@ -124,7 +124,7 @@ router.post('/recommendation', optionalAuth, async (req, res) => {
     // Call ML service for recommendation
     const response = await axios.post(`${ML_SERVICE_URL}/recommendation`, 
       { ticker, company },
-      { timeout: 150000 } // 2.5 minutes for combined analysis
+      { timeout: 280000 } // 2.5 minutes for combined analysis
     );
 
     res.json({

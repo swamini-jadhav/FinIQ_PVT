@@ -72,8 +72,9 @@ def fetch_stock_data(ticker, period="2y"): #was 5y
         data = yf.download(resolved, period=period, progress=False)
         if data.empty:
             raise ValueError(f"No data found for ticker: {resolved}")
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.get_level_values(0)
         data = data[['Open', 'High', 'Low', 'Close', 'Volume']]
-        data._resolved_ticker = resolved  # carry resolved name forward
         return data, resolved
     except Exception as e:
         raise Exception(f"Error fetching data for {ticker}: {str(e)}")

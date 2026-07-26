@@ -29,10 +29,7 @@ router.post('/query', optionalAuth, async (req, res) => {
       { timeout: 120000 } //was 30000
     );
 
-    res.json({
-      success: true,
-      data: response.data
-    });
+    res.json(response.data);
 
   } catch (error) {
     console.error('Chatbot error:', error.response?.data || error.message);
