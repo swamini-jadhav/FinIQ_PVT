@@ -13,6 +13,7 @@ warnings.filterwarnings('ignore')
 
 np.random.seed(42)
 torch.manual_seed(42)
+torch.set_num_threads(1)
 
 class StockLSTM(nn.Module):
     def __init__(self, input_size=8, hidden_size=64, num_layers=2, dropout=0.2):
@@ -226,7 +227,7 @@ def predict_stock(ticker, num_epochs=15): #was 50
         )
         
         input_size = len(feature_cols)
-        model = StockLSTM(input_size=input_size, hidden_size=64, num_layers=2, dropout=0.2)
+        model = StockLSTM(input_size=input_size, hidden_size=32, num_layers=1, dropout=0.0)
         
         criterion = nn.MSELoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
