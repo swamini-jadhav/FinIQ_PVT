@@ -16,7 +16,7 @@ CORS(app)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-PORT = int(os.getenv('FLASK_PORT', 5001))
+PORT = int(os.getenv('PORT') or os.getenv('FLASK_PORT', 5001))
 NEWSAPI_KEY = os.getenv('NEWSAPI_KEY')
 
 if not NEWSAPI_KEY:

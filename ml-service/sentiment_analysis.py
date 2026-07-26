@@ -1,25 +1,8 @@
 import requests
 import os
 from datetime import datetime, timedelta
-from transformers import pipeline
-
-# Load FinBERT model once at module level to avoid reloading on every call
-_finbert_pipeline = None
-
-def get_finbert_pipeline():
-    """Lazily initialize the FinBERT sentiment pipeline."""
-    global _finbert_pipeline
-    if _finbert_pipeline is None:
-        print("Loading FinBERT model (ProsusAI/finbert)...")
-        _finbert_pipeline = pipeline(
-            "text-classification",
-            model="ProsusAI/finbert",
-            tokenizer="ProsusAI/finbert",
-            max_length=512,
-            truncation=True
-        )
-        print("FinBERT model loaded.")
-    return _finbert_pipeline
+HF_TOKEN = os.getenv('HF_TOKEN')
+HF_URL = "https://router.huggingface.co/hf-inference/models/ProsusAI/finbert"
 
 NEWSAPI_KEY = os.getenv('NEWSAPI_KEY')
 
@@ -97,74 +80,30 @@ def analyze_sentiment(text):
         }
 
 
-def analyze_news_sentiment(ticker, company_name=None):
+def analyze_sentiment(text):
+    """Financial sentiment via FinBERT on the HF Inference API."""
     try:
-        articles = get_stock_news(ticker, company_name)
-        
-        if not articles:
-            return {
-                'ticker': ticker,
-                'articles_analyzed': 0,
-                'overall_sentiment': 'neutral',
-                'average_polarity': 0,
-                'sentiment_distribution': {
-                    'positive': 0,
-                    'neutral': 0,
-                    'negative': 0
-                },
-                'recent_articles': [],
-                'message': 'No recent news articles found'
-            }
-        
-        sentiments = []
-        analyzed_articles = []
-        
-        for article in articles[:10]:  
-            title = article.get('title', '')
-            description = article.get('description', '')
-            
-            text = f"{title}. {description}"
-            
-            sentiment = analyze_sentiment(text)
-            sentiments.append(sentiment['polarity'])
-            
-            analyzed_articles.append({
-                'title': title,
-                'description': description,
-                'url': article.get('url'),
-                'source': article.get('source', {}).get('name'),
-                'published_at': article.get('publishedAt'),
-                'sentiment': sentiment['sentiment'],
-                'polarity': round(sentiment['polarity'], 3)
-            })
-        
-        avg_polarity = sum(sentiments) / len(sentiments) if sentiments else 0
-        
-        if avg_polarity > 0.1:
-            overall_sentiment = 'positive'
-        elif avg_polarity < -0.1:
-            overall_sentiment = 'negative'
-        else:
-            overall_sentiment = 'neutral'
-        
-        sentiment_counts = {
-            'positive': sum(1 for s in sentiments if s > 0.1),
-            'neutral': sum(1 for s in sentiments if -0.1 <= s <= 0.1),
-            'negative': sum(1 for s in sentiments if s < -0.1)
-        }
-        
-        return {
-            'ticker': ticker,
-            'articles_analyzed': len(analyzed_articles),
-            'overall_sentiment': overall_sentiment,
-            'average_polarity': round(avg_polarity, 3),
-            'sentiment_distribution': sentiment_counts,
-            'recent_articles': analyzed_articles
-        }
-        
-    except Exception as e:
-        raise Exception(f"News sentiment analysis failed: {str(e)}")
+        r = requests.post(
+            HF_URL,
+            headers={"Authorization": f"Bearer {HF_TOKEN}"},
+            json={"inputs": text[:1000], "options": {"wait_for_model": True}},
+            timeout=30,
+        )
+        r.raise_for_status()
+        out = r.json()
 
+        # single input -> [[{label, score}, ...]]
+        scores = out[0] if isinstance(out[0], list) else out
+        best = max(scores, key=lambda s: s['score'])
+        label = best['label'].lower()
+        score = best['score']
+
+        polarity = score if label == 'positive' else -score if label == 'negative' else 0.0
+        return {'polarity': round(polarity, 4), 'sentiment': label}
+
+    except Exception as e:
+        print(f"FinBERT API error: {e}")
+        return {'polarity': 0, 'sentiment': 'neutral'}
 
 def generate_recommendation(prediction_data, sentiment_data):
     try:

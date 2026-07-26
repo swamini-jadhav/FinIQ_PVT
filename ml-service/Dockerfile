@@ -16,16 +16,7 @@ RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/wh
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download FinBERT model into the image so there's no download delay at runtime
-# This bakes the ~440MB model into the Docker image layer
-RUN python -c "\
-from transformers import AutoTokenizer, AutoModelForSequenceClassification; \
-AutoTokenizer.from_pretrained('ProsusAI/finbert'); \
-AutoModelForSequenceClassification.from_pretrained('ProsusAI/finbert'); \
-print('FinBERT pre-downloaded successfully')"
 
 COPY . .
 
-EXPOSE 5001
-
-CMD ["python", "app.py"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5001} --workers 1 --threads 4 --timeout 300 app:app"]

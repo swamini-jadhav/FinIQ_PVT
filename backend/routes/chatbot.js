@@ -26,7 +26,7 @@ router.post('/query', optionalAuth, async (req, res) => {
         context: context || {},
         userId: req.user?._id
       },
-      { timeout: 30000 }
+      { timeout: 120000 } //was 30000
     );
 
     res.json({
