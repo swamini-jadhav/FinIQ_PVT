@@ -64,7 +64,7 @@ def resolve_ticker(ticker):
     )
 
 
-def fetch_stock_data(ticker, period="5y"):
+def fetch_stock_data(ticker, period="2y"): #was 5y
     try:
         resolved = resolve_ticker(ticker)
         if resolved != ticker:
@@ -135,7 +135,7 @@ def prepare_data(df, seq_length=60, train_split=0.8):
     return train_loader, test_loader, scaler, feature_cols, X_test, y_test
 
 
-def train_model(model, train_loader, criterion, optimizer, num_epochs=50, device='cpu'):
+def train_model(model, train_loader, criterion, optimizer, num_epochs=15, device='cpu'): #was 50
     model.to(device)
     model.train()
     
@@ -213,7 +213,7 @@ def predict_next_close(model, data, scaler, seq_length=60, device='cpu'):
     return predicted_price
 
 
-def predict_stock(ticker, num_epochs=50):
+def predict_stock(ticker, num_epochs=15): #was 50
     try:
         print(f"Fetching data for {ticker}...")
         df, resolved_ticker = fetch_stock_data(ticker)

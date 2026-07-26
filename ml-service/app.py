@@ -47,7 +47,7 @@ def predict():
             }), 400
         
         ticker = data['ticker'].upper()
-        num_epochs = data.get('epochs', 50)
+        num_epochs = data.get('epochs', 15) #was 50
         
         logger.info(f"Processing prediction request for {ticker}")
         
@@ -128,7 +128,7 @@ def recommendation():
         
         logger.info(f"Generating recommendation for {ticker}")
         
-        prediction_result = predict_stock(ticker, num_epochs=50)
+        prediction_result = predict_stock(ticker, num_epochs=15)
         
         if NEWSAPI_KEY:
             sentiment_result = analyze_news_sentiment(ticker, company)
