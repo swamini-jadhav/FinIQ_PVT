@@ -45,40 +45,6 @@ def get_stock_news(ticker, company_name=None, days=7):
         return []
 
 
-def analyze_sentiment(text):
-    """Analyze financial sentiment using FinBERT (ProsusAI/finbert).
-    
-    FinBERT returns one of: 'positive', 'negative', 'neutral'
-    We convert the confidence score into a signed polarity value for
-    compatibility with the rest of the codebase.
-    """
-    try:
-        finbert = get_finbert_pipeline()
-        
-        # FinBERT has a 512 token limit; truncate long text
-        result = finbert(text[:1000])[0]
-        label = result['label'].lower()   # 'positive', 'negative', or 'neutral'
-        score = result['score']           # confidence 0-1
-        
-        # Map label + confidence to a signed polarity (-1 to +1)
-        if label == 'positive':
-            polarity = score
-        elif label == 'negative':
-            polarity = -score
-        else:  # neutral
-            polarity = 0.0
-        
-        return {
-            'polarity': round(polarity, 4),
-            'sentiment': label
-        }
-    except Exception as e:
-        print(f"FinBERT sentiment analysis error: {str(e)}")
-        return {
-            'polarity': 0,
-            'sentiment': 'neutral'
-        }
-
 
 def analyze_sentiment(text):
     """Financial sentiment via FinBERT on the HF Inference API."""
@@ -104,6 +70,69 @@ def analyze_sentiment(text):
     except Exception as e:
         print(f"FinBERT API error: {e}")
         return {'polarity': 0, 'sentiment': 'neutral'}
+    
+def analyze_news_sentiment(ticker, company_name=None):
+    try:
+        articles = get_stock_news(ticker, company_name)
+
+        if not articles:
+            return {
+                'ticker': ticker,
+                'articles_analyzed': 0,
+                'overall_sentiment': 'neutral',
+                'average_polarity': 0,
+                'sentiment_distribution': {'positive': 0, 'neutral': 0, 'negative': 0},
+                'recent_articles': [],
+                'message': 'No recent news articles found'
+            }
+
+        sentiments = []
+        analyzed_articles = []
+
+        for article in articles[:10]:
+            title = article.get('title', '')
+            description = article.get('description', '')
+            text = f"{title}. {description}"
+
+            sentiment = analyze_sentiment(text)
+            sentiments.append(sentiment['polarity'])
+
+            analyzed_articles.append({
+                'title': title,
+                'description': description,
+                'url': article.get('url'),
+                'source': article.get('source', {}).get('name'),
+                'published_at': article.get('publishedAt'),
+                'sentiment': sentiment['sentiment'],
+                'polarity': round(sentiment['polarity'], 3)
+            })
+
+        avg_polarity = sum(sentiments) / len(sentiments) if sentiments else 0
+
+        if avg_polarity > 0.1:
+            overall_sentiment = 'positive'
+        elif avg_polarity < -0.1:
+            overall_sentiment = 'negative'
+        else:
+            overall_sentiment = 'neutral'
+
+        sentiment_counts = {
+            'positive': sum(1 for s in sentiments if s > 0.1),
+            'neutral': sum(1 for s in sentiments if -0.1 <= s <= 0.1),
+            'negative': sum(1 for s in sentiments if s < -0.1)
+        }
+
+        return {
+            'ticker': ticker,
+            'articles_analyzed': len(analyzed_articles),
+            'overall_sentiment': overall_sentiment,
+            'average_polarity': round(avg_polarity, 3),
+            'sentiment_distribution': sentiment_counts,
+            'recent_articles': analyzed_articles
+        }
+
+    except Exception as e:
+        raise Exception(f"News sentiment analysis failed: {str(e)}")
 
 def generate_recommendation(prediction_data, sentiment_data):
     try:
