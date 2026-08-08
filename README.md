@@ -65,7 +65,10 @@ Node/Express API, and a Flask ML microservice, with MongoDB Atlas for persistenc
   entity-relevance scores to reject index roundups that merely mention the stock
 - **FinBERT** (`ProsusAI/finbert`) served through the Hugging Face Inference API — the model
   runs remotely, so no 440 MB download and no local RAM cost
+- **Groq (Llama 3.1 8B)** as an automatic fallback if the FinBERT call fails, so sentiment
+  degrades gracefully instead of silently reporting everything as neutral
 - Positive / Neutral / Negative with confidence scores, mapped to a signed polarity
+- Results cached for 24 hours per ticker to stay within free inference quotas
 
 ### 🤖 Investment Assistant
 - Rule-based responses across 11 categories for common platform questions
@@ -116,7 +119,7 @@ Node/Express API, and a Flask ML microservice, with MongoDB Atlas for persistenc
 ### ML Service
 - 🐍 **Flask 3** + **gunicorn**
 - 🔥 **PyTorch** — LSTM training
-- 🤗 **FinBERT via HF Inference API**
+- 🤗 **FinBERT** + **Groq** fallback
 - 📈 **yfinance** — global market data
 - 📡 **Google News RSS** + **Marketaux**
 - 🔢 **scikit-learn** — scaling, metrics
@@ -181,7 +184,8 @@ FinIQ/
 - **Python** 3.10+
 - **MongoDB Atlas** account — [mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas)
 - **Hugging Face** token — [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
-- **Marketaux** key (optional, fallback only) — [marketaux.com](https://www.marketaux.com/)
+- **Groq** key (sentiment fallback) — [console.groq.com](https://console.groq.com/)
+- **Marketaux** key (optional, news fallback) — [marketaux.com](https://www.marketaux.com/)
 
 ---
 
@@ -217,6 +221,7 @@ Create `ml-service/.env`:
 FLASK_PORT=5001
 FLASK_ENV=development
 HF_TOKEN=hf_your_huggingface_token
+GROQ_API_KEY=gsk_your_groq_key
 MARKETAUX_KEY=your_marketaux_key
 ```
 
@@ -273,6 +278,7 @@ npm start                         # http://localhost:3000
 |-----|----------------|----------|
 | `MONGODB_URI` | [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) (free M0 tier) | User accounts and favourites |
 | `HF_TOKEN` | [huggingface.co](https://huggingface.co/settings/tokens) (read scope) | FinBERT sentiment + chatbot LLM fallback |
+| `GROQ_API_KEY` | [console.groq.com](https://console.groq.com/) (free tier) | Sentiment fallback when FinBERT is unavailable |
 | `MARKETAUX_KEY` | [marketaux.com](https://www.marketaux.com/) (free tier) | Fallback news source — optional |
 
 Google News RSS is the primary news source and requires no key or account.
@@ -339,7 +345,7 @@ one's URL.
 
 - New Web Service → Runtime **Docker** → Root Directory `ml-service`
 - Health Check Path: `/health`
-- Environment: `HF_TOKEN`, `MARKETAUX_KEY`
+- Environment: `HF_TOKEN`, `GROQ_API_KEY`, `MARKETAUX_KEY`
 - **Do not set `PORT` or `FLASK_PORT`** — Render injects `PORT` and the app reads it
 
 ### 2. Backend — Render
@@ -390,6 +396,10 @@ Running this on Render's free tier (512 MB RAM, ~0.1 shared CPU) drove several d
   A 3-hour in-memory cache keyed by ticker makes repeat requests immediate.
 - **Pinned dependencies.** An unpinned `yfinance` upgrade changed its return format to
   MultiIndex columns and broke predictions silently. All versions are now pinned.
+- **Sentiment caching and a fallback classifier.** Hugging Face's free inference allowance is
+  small, so sentiment results are cached for 24 hours per ticker and each analysis classifies
+  four headlines rather than ten. A Groq fallback covers the case where FinBERT is
+  unavailable, and each article records which model classified it.
 
 ---
 
@@ -403,7 +413,9 @@ Running this on Render's free tier (512 MB RAM, ~0.1 shared CPU) drove several d
 - Google News RSS is an unofficial endpoint with no stability guarantee. Marketaux is
   configured as a fallback, but a change to the RSS format would need a code update.
 - Google News RSS provides headlines without article summaries, so FinBERT classifies titles
-  rather than full text.
+  rather than full text. FinBERT was trained on analyst-report sentences and is noisier on
+  headline phrasing; averaging across articles smooths this, but individual labels can be
+  wrong.
 - Company-specific news is sparse for some listings between quarterly results, particularly
   outside the US. Sentiment for those tickers may reflect sector or index coverage.
 - Predictions are a single-step next-close estimate. This is a learning project, not
