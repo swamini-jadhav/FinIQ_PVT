@@ -137,6 +137,7 @@ def get_stock_news(ticker, company_name=None, days=None):
             continue
         seen.add(u)
         out.append(a)
+    print(f"get_stock_news {ticker}: {len(pool)} pooled -> {len(out)} returned")
     return out[:8]
 
 
@@ -176,6 +177,7 @@ def analyze_sentiment_batch(texts):
 def analyze_news_sentiment(ticker, company_name=None):
     try:
         articles = get_stock_news(ticker, company_name)
+        print(f"analyze_news_sentiment got {len(articles)} articles")
 
         if not articles:
             return {
