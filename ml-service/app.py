@@ -17,11 +17,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 PORT = int(os.getenv('PORT') or os.getenv('FLASK_PORT', 5001))
-NEWSAPI_KEY = os.getenv('NEWSAPI_KEY')
-
-if not NEWSAPI_KEY:
-    logger.warning("⚠️  NEWSAPI_KEY not found. News sentiment analysis will be limited.")
-
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -125,14 +120,7 @@ def recommendation():
         
         prediction_result = predict_stock_cached(ticker, num_epochs=15)
         
-        if NEWSAPI_KEY:
-            sentiment_result = analyze_news_sentiment_cached(ticker, company)
-        else:
-            sentiment_result = {
-                'overall_sentiment': 'neutral',
-                'average_polarity': 0,
-                'articles_analyzed': 0
-            }
+        sentiment_result = analyze_news_sentiment_cached(ticker, company)
         
         recommendation_result = generate_recommendation(prediction_result, sentiment_result)
         
