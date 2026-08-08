@@ -30,7 +30,7 @@ def health_check():
         'status': 'healthy',
         'service': 'FinIQ ML Service',
         'version': '1.0.0',
-        'newsapi_configured': bool(NEWSAPI_KEY)
+        'marketaux_configured': bool(os.getenv('MARKETAUX_KEY'))
     }), 200
 
 
@@ -90,11 +90,6 @@ def news_sentiment():
         
         logger.info(f"Processing sentiment analysis for {ticker}")
         
-        if not NEWSAPI_KEY:
-            return jsonify({
-                'success': False,
-                'message': 'News API key not configured'
-            }), 503
         
         result = analyze_news_sentiment(ticker, company)
         
@@ -236,5 +231,5 @@ def internal_error(error):
 
 if __name__ == '__main__':
     logger.info(f"Starting FinIQ ML Service on port {PORT}")
-    logger.info(f"NewsAPI configured: {bool(NEWSAPI_KEY)}")
+    logger.info(f"Marketaux configured: {bool(os.getenv('MARKETAUX_KEY'))}")
     app.run(host='0.0.0.0', port=PORT, debug=os.getenv('FLASK_ENV') == 'development')
