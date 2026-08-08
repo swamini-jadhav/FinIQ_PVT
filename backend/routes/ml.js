@@ -36,10 +36,7 @@ router.post('/predict', optionalAuth, async (req, res) => {
       timeout: 280000 // 2 minutes timeout for ML processing
     });
 
-    res.json({
-      success: true,
-      data: response.data
-    });
+    res.json(response.data);
 
   } catch (error) {
     console.error('Prediction error:', error.response?.data || error.message);
@@ -85,10 +82,7 @@ router.post('/news-sentiment', optionalAuth, async (req, res) => {
       { timeout: 30000 }
     );
 
-    res.json({
-      success: true,
-      data: response.data
-    });
+    res.json(response.data);
 
   } catch (error) {
     console.error('News sentiment error:', error.response?.data || error.message);
@@ -127,10 +121,7 @@ router.post('/recommendation', optionalAuth, async (req, res) => {
       { timeout: 280000 } // 2.5 minutes for combined analysis
     );
 
-    res.json({
-      success: true,
-      data: response.data
-    });
+    res.json(response.data);
 
   } catch (error) {
     console.error('Recommendation error:', error.response?.data || error.message);
