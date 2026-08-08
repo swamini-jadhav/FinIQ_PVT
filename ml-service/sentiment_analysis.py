@@ -3,6 +3,7 @@ import os
 from datetime import datetime, timedelta
 import feedparser
 import urllib.parse
+import re, html
 HF_TOKEN = os.getenv('HF_TOKEN')
 HF_URL = "https://router.huggingface.co/hf-inference/models/ProsusAI/finbert"
 COMPANY_NAMES = {
@@ -85,6 +86,15 @@ def _is_junk(title, url):
         return True
     return any(p in t for p in QUOTE_PAGE_PATTERNS) or any(d in u for d in QUOTE_DOMAINS)
 
+def _clean_summary(raw, title):
+    if not raw:
+        return ''
+    text = re.sub(r'<[^>]+>', ' ', raw)
+    text = html.unescape(text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    if not text or title.lower()[:40] in text.lower():
+        return ''
+    return text[:400]
 
 def _fetch_gnews(ticker, company_name=None, days=14, limit=25):
     base = ticker.replace('.NS', '').replace('.BO', '')
@@ -97,11 +107,12 @@ def _fetch_gnews(ticker, company_name=None, days=14, limit=25):
         feed = feedparser.parse(url)
         out = []
         for e in feed.entries[:limit]:
-            if _is_junk(e.title, e.link):
+            title = re.sub(r'\s+-\s+[^-]{2,30}$', '', e.title).strip()
+            if _is_junk(title, e.link):
                 continue
             out.append({
-                'title': e.title,
-                'description': getattr(e, 'summary', '')[:500],
+                'title': title,
+                'description': _clean_summary(getattr(e, 'summary', ''), title),
                 'url': e.link,
                 'source': {'name': getattr(getattr(e, 'source', None), 'title', 'Google News')},
                 'publishedAt': getattr(e, 'published', None),
