@@ -7,3 +7,4 @@ yfinance==0.2.65
 scikit-learn==1.5.2
 requests==2.32.3
 python-dotenv==1.0.0
+feedparser==6.0.11
