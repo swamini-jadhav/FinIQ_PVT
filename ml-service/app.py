@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import logging
 
 from lstm_model import predict_stock_cached
-from sentiment_analysis import analyze_news_sentiment, generate_recommendation
+from sentiment_analysis import analyze_news_sentiment_cached, generate_recommendation
 from chatbot import get_chatbot_response
 
 load_dotenv()
@@ -91,7 +91,7 @@ def news_sentiment():
         logger.info(f"Processing sentiment analysis for {ticker}")
         
         
-        result = analyze_news_sentiment(ticker, company)
+        result = analyze_news_sentiment_cached(ticker, company)
         
         return jsonify({
             'success': True,
@@ -126,7 +126,7 @@ def recommendation():
         prediction_result = predict_stock_cached(ticker, num_epochs=15)
         
         if NEWSAPI_KEY:
-            sentiment_result = analyze_news_sentiment(ticker, company)
+            sentiment_result = analyze_news_sentiment_cached(ticker, company)
         else:
             sentiment_result = {
                 'overall_sentiment': 'neutral',

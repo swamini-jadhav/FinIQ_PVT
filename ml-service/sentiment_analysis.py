@@ -4,6 +4,9 @@ from datetime import datetime, timedelta
 import feedparser
 import urllib.parse
 import re, html
+import time
+GROQ_KEY = os.getenv('GROQ_API_KEY')
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 HF_TOKEN = os.getenv('HF_TOKEN')
 HF_URL = "https://router.huggingface.co/hf-inference/models/ProsusAI/finbert"
 COMPANY_NAMES = {
@@ -142,30 +145,52 @@ def get_stock_news(ticker, company_name=None, days=None):
 
 
 
-def analyze_sentiment(text):
-    """Financial sentiment via FinBERT on the HF Inference API."""
+def _finbert(text):
+    """Returns dict, or None if the call fails (quota, auth, timeout)."""
+    if not HF_TOKEN:
+        return None
     try:
-        r = requests.post(
-            HF_URL,
+        r = requests.post(HF_URL,
             headers={"Authorization": f"Bearer {HF_TOKEN}"},
             json={"inputs": text[:1000], "options": {"wait_for_model": True}},
-            timeout=30,
-        )
+            timeout=30)
         r.raise_for_status()
         out = r.json()
-
-        # single input -> [[{label, score}, ...]]
         scores = out[0] if isinstance(out[0], list) else out
         best = max(scores, key=lambda s: s['score'])
         label = best['label'].lower()
-        score = best['score']
-
-        polarity = score if label == 'positive' else -score if label == 'negative' else 0.0
-        return {'polarity': round(polarity, 4), 'sentiment': label}
-
+        pol = best['score'] if label == 'positive' else -best['score'] if label == 'negative' else 0.0
+        return {'polarity': round(pol, 4), 'sentiment': label, 'model': 'finbert'}
     except Exception as e:
-        print(f"FinBERT API error: {e}")
-        return {'polarity': 0, 'sentiment': 'neutral'}
+        print(f"FinBERT unavailable: {type(e).__name__}: {str(e)[:80]}")
+        return None
+
+
+def _groq(text):
+    if not GROQ_KEY:
+        return None
+    try:
+        r = requests.post(GROQ_URL,
+            headers={"Authorization": f"Bearer {GROQ_KEY}"},
+            json={"model": "llama-3.1-8b-instant",
+                  "messages": [
+                      {"role": "system", "content": "Classify the financial sentiment of this headline for the company mentioned. Reply with exactly one word: positive, negative, or neutral."},
+                      {"role": "user", "content": text[:500]}],
+                  "max_tokens": 5, "temperature": 0},
+            timeout=20)
+        r.raise_for_status()
+        label = r.json()["choices"][0]["message"]["content"].strip().lower()
+        pol = 0.7 if 'positive' in label else -0.7 if 'negative' in label else 0.0
+        name = 'positive' if pol > 0 else 'negative' if pol < 0 else 'neutral'
+        return {'polarity': pol, 'sentiment': name, 'model': 'groq'}
+    except Exception as e:
+        print(f"Groq error: {type(e).__name__}: {str(e)[:80]}")
+        return None
+
+
+def analyze_sentiment(text):
+    return (_finbert(text) or _groq(text)
+            or {'polarity': 0, 'sentiment': 'neutral', 'model': 'none'})
     
     
 def analyze_sentiment_batch(texts):
@@ -193,7 +218,7 @@ def analyze_news_sentiment(ticker, company_name=None):
         sentiments = []
         analyzed_articles = []
 
-        batch = articles[:10]
+        batch = articles[:5]
         texts = [f"{a.get('title') or ''}. {a.get('description') or ''}".strip() for a in batch]
         batch_results = analyze_sentiment_batch(texts)
 
@@ -323,3 +348,14 @@ def generate_recommendation(prediction_data, sentiment_data):
         
     except Exception as e:
         raise Exception(f"Recommendation generation failed: {str(e)}")
+_sentiment_cache = {}
+SENTIMENT_TTL = 24 * 3600
+
+def analyze_news_sentiment_cached(ticker, company_name=None):
+    hit = _sentiment_cache.get(ticker)
+    if hit and time.time() - hit[0] < SENTIMENT_TTL:
+        print(f"Sentiment cache hit for {ticker}")
+        return hit[1]
+    result = analyze_news_sentiment(ticker, company_name)
+    _sentiment_cache[ticker] = (time.time(), result)
+    return result
